@@ -1,10 +1,10 @@
 #ifndef TJSON_H
 #define TJSON_H
 
-#include <ostream>
+#include <iosfwd>
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 namespace tjson {
 

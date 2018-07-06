@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <ostream>
 #include <regex>
 #include <sstream>
 
