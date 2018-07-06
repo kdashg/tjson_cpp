@@ -1,46 +1,51 @@
 #include "tjson.h"
 
-#include <cstdlib>
+#include <fstream>
 #include <iostream>
 
 static std::vector<uint8_t>
-ReadFile(const char* const path, std::string* const out_err)
+ReadStream(std::istream* const in, std::string* const out_err)
 {
-   const auto file = fopen(path, "rb");
-   if (!file) {
-      *out_err = "fopen failed";
+   std::vector<uint8_t> ret(1000*1000);
+   uint64_t pos = 0;
+   while (true) {
+      in->read((char*)ret.data() + pos, ret.size() - pos);
+      pos += in->gcount();
+      if (in->good()) {
+         ret.resize(ret.size() * 2);
+         continue;
+      }
+
+      if (in->eof()) {
+         ret.resize(pos);
+         return ret;
+      }
+
+      *out_err = std::string("rdstate: ") + std::to_string(in->rdstate());
       return {};
    }
-
-   fseek(file, 0, SEEK_END);
-   const auto size = ftell(file);
-   rewind(file);
-
-   std::vector<uint8_t> buff(size);
-   (void)fread(buff.data(), 1, buff.size(), file);
-
-   const auto err = ferror(file);
-   if (err) {
-      *out_err = std::string("ferror: ") + std::to_string(err);
-      return {};
-   }
-   fclose(file);
-   return buff;
 }
 
 int
 main(int argc, const char* const argv[])
 {
-   if (argc < 2) {
-      fprintf(stderr, "Specify a file.\n");
-      return 1;
-   }
-   const auto path = argv[1];
-
-   fprintf(stderr, "Reading %s...\n", path);
-
    std::string err;
-   const auto bytes = ReadFile(path, &err);
+   const auto bytes = [&]() {
+      std::istream* in;
+      std::ifstream file_in;
+      if (argc < 2) {
+         fprintf(stderr, "Reading STDIN...\n");
+         in = &std::cin;
+      } else {
+         const auto path = argv[1];
+         fprintf(stderr, "Reading %s...\n", path);
+         file_in.open(path, std::ios_base::in | std::ios_base::binary);
+         in = &file_in;
+      }
+
+      return ReadStream(in, &err);
+   }();
+
    if (err.size()) {
       fprintf(stderr, "%s\n", err.c_str());
       return 1;
