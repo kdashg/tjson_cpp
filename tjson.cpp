@@ -34,7 +34,7 @@ struct Token final
    std::string str() const { return std::string(begin, end); }
 };
 
-const std::regex kReWhitespace(R"([ \t\n]+)");
+const std::regex kReWhitespace(R"([ \t\n\r]+)");
 const std::regex kReString(R"_("(:?[^"\\]*(:?\\.)*)*")_");
 const std::regex kReWord(R"([A-Za-z0-9_+\-.]+)");
 const std::regex kReSymbol(R"([{:,}\[\]])");
