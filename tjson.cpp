@@ -8,6 +8,10 @@
 
 namespace tjson {
 
+/*static*/ const Val Val::kInvalid;
+
+// -
+
 struct Token final
 {
    enum class Type : uint8_t {
@@ -100,18 +104,20 @@ public:
    }
 };
 
-/*static*/ std::unique_ptr<Val>
-Val::Read(const char* const begin, const char* const end,
-          std::vector<std::string>* const out_errors)
+// -
+
+std::unique_ptr<Val>
+Read(const char* const begin, const char* const end,
+     std::vector<std::string>* const out_errors)
 {
    TokenGen tok_gen(begin, end);
    auto ret = Read(&tok_gen, &*out_errors);
    return std::move(ret);
 }
 
-/*static*/ std::unique_ptr<Val>
-Val::Read(TokenGen* const tok_gen,
-          std::vector<std::string>* const out_errors)
+std::unique_ptr<Val>
+Read(TokenGen* const tok_gen,
+     std::vector<std::string>* const out_errors)
 {
    const auto fn_err = [&](const Token& tok, const char* const expected) {
       auto str = tok.str();
@@ -146,10 +152,11 @@ Val::Read(TokenGen* const tok_gen,
 
 
    auto ret = std::unique_ptr<Val>(new Val);
+   auto& cur = *ret;
 
    const auto tok = tok_gen->NextNonWS();
    if (tok == "{") {
-      ret->dict = &(ret->dict_);
+      cur.set_dict();
 
       auto peek_gen = *tok_gen;
       const auto peek = peek_gen.NextNonWS();
@@ -170,7 +177,7 @@ Val::Read(TokenGen* const tok_gen,
             auto v = Read(tok_gen, &*out_errors);
             if (!v)
                return nullptr;
-            (*(ret->dict))[k.str()] = std::move(v); // Overwrite.
+            cur[k.str()] = std::move(v); // Overwrite.
 
             const auto comma = tok_gen->NextNonWS();
             if (comma == "}")
@@ -184,19 +191,21 @@ Val::Read(TokenGen* const tok_gen,
    }
 
    if (tok == "[") {
-      ret->list = &(ret->list_);
+      cur.set_list();
 
       auto peek_gen = *tok_gen;
       const auto peek = peek_gen.NextNonWS();
       if (peek == "]") {
          *tok_gen = peek_gen;
       } else {
+         size_t i = 0;
          while (true) {
             auto v = Read(tok_gen, &*out_errors);
             if (!v)
                return nullptr;
 
-            ret->list->push_back(std::move(v));
+            cur[i] = std::move(v);
+            i += 1;
 
             const auto comma = tok_gen->NextNonWS();
             if (comma == "]")
@@ -212,23 +221,23 @@ Val::Read(TokenGen* const tok_gen,
    if (!fn_is_expected(tok))
       return nullptr;
 
-   ret->val = &(ret->val_);
-   *(ret->val) = tok.str();
+   cur.val() = tok.str();
    return ret;
 }
 
 void
-Val::Write(std::ostream* const out, const std::string& indent) const
+Write(const Val& root, std::ostream* const out, const std::string& indent)
 {
-   if (dict) {
+   if (root.is_dict()) {
+      const auto& d = root.dict();
       *out << "{";
-      if (!dict->size()) {
+      if (!d.size()) {
          *out << "}";
          return;
       }
       const auto indent_plus = indent + "   ";
       bool needsComma = false;
-      for (const auto& kv : *dict) {
+      for (const auto& kv : d) {
          if (needsComma) {
             *out << ",";
          }
@@ -241,15 +250,17 @@ Val::Write(std::ostream* const out, const std::string& indent) const
       *out << "\n" << indent << "}";
       return;
    }
-   if (list) {
+
+   if (root.is_list()) {
+      const auto& l = root.list();
       *out << "[";
-      if (!list->size()) {
+      if (!l.size()) {
          *out << "]";
          return;
       }
       const auto indent_plus = indent + "   ";
       bool needsComma = false;
-      for (const auto& v : *list) {
+      for (const auto& v : l) {
          if (needsComma) {
             *out << ",";
          }
@@ -262,7 +273,8 @@ Val::Write(std::ostream* const out, const std::string& indent) const
       *out << "\n" << indent << "]";
       return;
    }
-   *out << *val;
+
+   *out << root.val();
 }
 
 } // namespace tjson
