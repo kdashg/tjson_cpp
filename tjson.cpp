@@ -177,7 +177,9 @@ Read(TokenGen* const tok_gen,
             auto v = Read(tok_gen, &*out_errors);
             if (!v)
                return nullptr;
-            cur[k.str()] = std::move(v); // Overwrite.
+            const auto& key_str = k.str();
+            const auto key_name = key_str.substr(1, key_str.size()-2);
+            cur[key_name] = std::move(v); // Overwrite.
 
             const auto comma = tok_gen->NextNonWS();
             if (comma == "}")
@@ -242,7 +244,7 @@ Write(const Val& root, std::ostream* const out, const std::string& indent)
             *out << ",";
          }
 
-         *out << "\n" << indent_plus << kv.first << ": ";
+         *out << "\n" << indent_plus << "\"" << kv.first << "\": ";
          kv.second->Write(out, indent_plus);
 
          needsComma = true;
