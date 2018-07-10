@@ -277,4 +277,58 @@ Write(const Val& root, std::ostream* const out, const std::string& indent)
    *out << root.val();
 }
 
+// -
+
+void
+Val::reset()
+{
+   dict_.clear();
+   is_dict_ = false;
+
+   list_.clear();
+   is_list_ = false;
+
+   val_ = "";
+}
+
+// -
+
+const Val&
+Val::operator[](const std::string& x) const
+{
+   const auto itr = dict_.find(x);
+   if (itr == dict_.end())
+      return kInvalid;
+   return *(itr->second.get());
+}
+
+std::unique_ptr<Val>&
+Val::operator[](const std::string& x)
+{
+   set_dict();
+   auto& val = dict_[x];
+   val.reset(new Val);
+   return val;
+}
+
+// -
+
+const Val&
+Val::operator[](const size_t i) const
+{
+   if (i >= list_.size())
+      return kInvalid;
+   return *(list_[i].get());
+}
+
+std::unique_ptr<Val>&
+Val::operator[](const size_t i)
+{
+   set_list();
+   while (i >= list_.size()) {
+      list_.push_back(std::unique_ptr<Val>(new Val));
+   }
+   return list_[i];
+}
+
 } // namespace tjson

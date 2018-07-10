@@ -13,6 +13,7 @@ class Val;
 
 std::unique_ptr<Val> Read(const char* begin, const char* end,
                           std::vector<std::string>* out_errors);
+
 std::unique_ptr<Val> Read(TokenGen* tok_gen,
                           std::vector<std::string>* out_errors);
 
@@ -34,23 +35,27 @@ private:
    bool is_list_ = false;
 
 private:
-   void reset() {
-      dict_.clear();
-      is_dict_ = false;
-
-      list_.clear();
-      is_list_ = false;
-
-      val_ = "";
-   }
+   void reset();
 
 public:
+   // const
    bool operator!() const { return !is_dict_ && !is_list_ && !val_.size(); }
    bool is_dict() const { return is_dict_; }
    bool is_list() const { return is_list_; }
    bool is_val() const { return bool(val_.size()); }
 
-   // -
+   const auto& dict() const { return dict_; }
+   const auto& list() const { return list_; }
+   const auto& val() const { return val_; }
+
+   const Val& operator[](const std::string& x) const;
+   const Val& operator[](size_t i) const;
+
+   void Write(std::ostream* out, const std::string& indent) const {
+      tjson::Write(*this, out, indent);
+   }
+
+   // non-const
 
    void set_dict() {
       if (!is_dict_) {
@@ -58,7 +63,6 @@ public:
          is_dict_ = true;
       }
    }
-   const auto& dict() const { return dict_; }
 
    void set_list() {
       if (!is_list_) {
@@ -66,55 +70,15 @@ public:
          is_list_ = true;
       }
    }
-   const auto& list() const { return list_; }
 
-   // -
-
-   const Val& operator[](const std::string& x) const {
-      const auto itr = dict_.find(x);
-      if (itr == dict_.end())
-         return kInvalid;
-      return *(itr->second.get());
-   }
-
-   std::unique_ptr<Val>& operator[](const std::string& x) {
-      set_dict();
-      auto& val = dict_[x];
-      val.reset(new Val);
-      return val;
-   }
-
-   // -
-
-   const Val& operator[](const size_t i) const {
-      if (i >= list_.size())
-         return kInvalid;
-      return *(list_[i].get());
-   }
-
-   std::unique_ptr<Val>& operator[](const size_t i) {
-      set_list();
-      while (i >= list_.size()) {
-         list_.push_back(std::unique_ptr<Val>(new Val));
-      }
-      return list_[i];
-   }
-
-   // -
-
-   const auto& val() const { return val_; }
+   std::unique_ptr<Val>& operator[](const std::string& x);
+   std::unique_ptr<Val>& operator[](size_t i);
 
    auto& val() {
       if (!val_.size()) {
          reset();
       }
       return val_;
-   }
-
-   // -
-
-   void Write(std::ostream* out, const std::string& indent) const {
-      tjson::Write(*this, out, indent);
    }
 };
 
