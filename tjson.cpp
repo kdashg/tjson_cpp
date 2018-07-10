@@ -2,24 +2,74 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <locale>
 #include <ostream>
 #include <regex>
 #include <sstream>
 
 namespace tjson {
 
-/*static*/ const Val Val::kInvalid;
+/*static*/ const Val Val::INVALID;
+
+// -
+
+std::string
+escape(const std::string& in)
+{
+   std::string out;
+   out.reserve(in.size() + 2); // Only reserve the required quotes.
+
+   out += '"';
+   for (const auto c : in) {
+      if (c == '"' || c == '\\') {
+         out += '\\';
+      }
+      out += c;
+   }
+   out += '"';
+   return out;
+}
+
+bool
+unescape(const std::string& in, std::string* const out)
+{
+   if (in.size() < 2)
+      return false;
+   if (in[0] != '"' || in[in.size()-1] != '"')
+      return false;
+
+   std::string wip;
+   wip.reserve(in.size() - 2);
+
+   bool in_escape = false;
+   auto itr = in.c_str() + 1;
+   const auto end = in.c_str() + in.size() - 1;
+   for (; itr != end; ++itr) {
+      const auto& c = *itr;
+      if (!in_escape && c == '\\') {
+         in_escape = true;
+      } else {
+         in_escape = false;
+         wip += c;
+      }
+   }
+   if (in_escape)
+      return false;
+
+   *out = std::move(wip);
+   return true;
+}
 
 // -
 
 struct Token final
 {
    enum class Type : uint8_t {
-      Malformed = '?',
-      Whitespace = '_',
-      String = '"',
-      Word = 'a',
-      Symbol = '$',
+      MALFORMED = '?',
+      WHITESPACE = '_',
+      STRING = '"',
+      WORD = 'a',
+      SYMBOL = '$',
    };
 
    const char* begin;
@@ -38,13 +88,13 @@ struct Token final
    std::string str() const { return std::string(begin, end); }
 };
 
-const std::regex kReWhitespace(R"([ \t\n\r]+)");
-const std::regex kReString(R"_("(:?[^"\\]*(:?\\.)*)*")_");
-const std::regex kReWord(R"([A-Za-z0-9_+\-.]+)");
-const std::regex kReSymbol(R"([{:,}\[\]])");
+const std::regex RE_WHITESPACE(R"([ \t\n\r]+)");
+const std::regex RE_STRING(R"_("(:?[^"\\]*(:?\\.)*)*")_");
+const std::regex RE_WORD(R"([A-Za-z0-9_+\-.]+)");
+const std::regex RE_SYMBOL(R"([{:,}\[\]])");
 
 static bool
-NextTokenFromRegex(const std::regex& regex, Token* const out)
+next_token_from_regex(const std::regex& regex, Token* const out)
 {
    std::cmatch res;
    if (!std::regex_search(out->begin, out->end, res, regex,
@@ -62,19 +112,19 @@ class TokenGen final
 
 public:
    TokenGen(const char* const begin, const char* const end)
-      : meta_token_{begin, end, 1, 1, Token::Type::Malformed}
+      : meta_token_{begin, end, 1, 1, Token::Type::MALFORMED}
    { }
 
    Token Next() {
       auto ret = meta_token_;
-      if (NextTokenFromRegex(kReWhitespace, &ret)) {
-         ret.type = Token::Type::Whitespace;
-      } else if (NextTokenFromRegex(kReString, &ret)) {
-         ret.type = Token::Type::String;
-      } else if (NextTokenFromRegex(kReWord, &ret)) {
-         ret.type = Token::Type::Word;
-      } else if (NextTokenFromRegex(kReSymbol, &ret)) {
-         ret.type = Token::Type::Symbol;
+      if (next_token_from_regex(RE_WHITESPACE, &ret)) {
+         ret.type = Token::Type::WHITESPACE;
+      } else if (next_token_from_regex(RE_STRING, &ret)) {
+         ret.type = Token::Type::STRING;
+      } else if (next_token_from_regex(RE_WORD, &ret)) {
+         ret.type = Token::Type::WORD;
+      } else if (next_token_from_regex(RE_SYMBOL, &ret)) {
+         ret.type = Token::Type::SYMBOL;
       }
 
       meta_token_.begin = ret.end;
@@ -91,7 +141,7 @@ public:
    Token NextNonWS() {
       while (true) {
          const auto ret = Next();
-         if (ret.type != Token::Type::Whitespace) {
+         if (ret.type != Token::Type::WHITESPACE) {
 
 //#define SPEW_TOKENS
 #ifdef SPEW_TOKENS
@@ -107,16 +157,16 @@ public:
 // -
 
 std::unique_ptr<Val>
-Read(const char* const begin, const char* const end,
+read(const char* const begin, const char* const end,
      std::vector<std::string>* const out_errors)
 {
    TokenGen tok_gen(begin, end);
-   auto ret = Read(&tok_gen, &*out_errors);
+   auto ret = read(&tok_gen, &*out_errors);
    return std::move(ret);
 }
 
 std::unique_ptr<Val>
-Read(TokenGen* const tok_gen,
+read(TokenGen* const tok_gen,
      std::vector<std::string>* const out_errors)
 {
    const auto fn_err = [&](const Token& tok, const char* const expected) {
@@ -142,9 +192,9 @@ Read(TokenGen* const tok_gen,
          expl_expected_str = std::string("\"") + expected_str + "\"";
          expl_expected = expl_expected_str.c_str();
       } else {
-         if (tok.type != Token::Type::Malformed)
+         if (tok.type != Token::Type::MALFORMED)
             return true;
-         expl_expected = "!Malfomed";
+         expl_expected = "!MALFORMED";
       }
       fn_err(tok, expl_expected);
       return false;
@@ -165,8 +215,8 @@ Read(TokenGen* const tok_gen,
       } else {
          while (true) {
             const auto k = tok_gen->NextNonWS();
-            if (k.type != Token::Type::String) {
-               fn_err(k, "String");
+            if (k.type != Token::Type::STRING) {
+               fn_err(k, "STRING");
                return nullptr;
             }
 
@@ -174,11 +224,12 @@ Read(TokenGen* const tok_gen,
             if (!fn_is_expected(colon, ":"))
                return nullptr;
 
-            auto v = Read(tok_gen, &*out_errors);
+            auto v = read(tok_gen, &*out_errors);
             if (!v)
                return nullptr;
-            const auto& key_str = k.str();
-            const auto key_name = key_str.substr(1, key_str.size()-2);
+
+            std::string key_name;
+            (void)unescape(k.str(), &key_name);
             cur[key_name] = std::move(v); // Overwrite.
 
             const auto comma = tok_gen->NextNonWS();
@@ -202,7 +253,7 @@ Read(TokenGen* const tok_gen,
       } else {
          size_t i = 0;
          while (true) {
-            auto v = Read(tok_gen, &*out_errors);
+            auto v = read(tok_gen, &*out_errors);
             if (!v)
                return nullptr;
 
@@ -228,7 +279,7 @@ Read(TokenGen* const tok_gen,
 }
 
 void
-Write(const Val& root, std::ostream* const out, const std::string& indent)
+write(const Val& root, std::ostream* const out, const std::string& indent)
 {
    if (root.is_dict()) {
       const auto& d = root.dict();
@@ -244,8 +295,8 @@ Write(const Val& root, std::ostream* const out, const std::string& indent)
             *out << ",";
          }
 
-         *out << "\n" << indent_plus << "\"" << kv.first << "\": ";
-         kv.second->Write(out, indent_plus);
+         *out << "\n" << indent_plus << escape(kv.first) << ": ";
+         kv.second->write(out, indent_plus);
 
          needsComma = true;
       }
@@ -268,7 +319,7 @@ Write(const Val& root, std::ostream* const out, const std::string& indent)
          }
 
          *out << "\n" << indent_plus;
-         v->Write(out, indent_plus);
+         v->write(out, indent_plus);
 
          needsComma = true;
       }
@@ -277,6 +328,39 @@ Write(const Val& root, std::ostream* const out, const std::string& indent)
    }
 
    *out << root.val();
+}
+
+// -
+
+bool
+Val::as_number(double* const out) const
+{
+   auto stream = std::istringstream(val_);
+
+   // Set the C locale, otherwise 1.5 parses as 1.0 in decimal-comma locales!
+   const auto locale = std::locale::classic();
+   stream.imbue(locale);
+
+   double ret;
+   stream >> ret;
+   if (stream.fail())
+      return false;
+
+   *out = ret;
+   return true;
+}
+
+void
+Val::val(const double x)
+{
+   auto stream = std::ostringstream();
+
+   const auto locale = std::locale::classic();
+   stream.imbue(locale);
+
+   stream << x;
+
+   val() = stream.str();
 }
 
 // -
@@ -300,7 +384,7 @@ Val::operator[](const std::string& x) const
 {
    const auto itr = dict_.find(x);
    if (itr == dict_.end())
-      return kInvalid;
+      return INVALID;
    return *(itr->second.get());
 }
 
@@ -319,7 +403,7 @@ const Val&
 Val::operator[](const size_t i) const
 {
    if (i >= list_.size())
-      return kInvalid;
+      return INVALID;
    return *(list_[i].get());
 }
 

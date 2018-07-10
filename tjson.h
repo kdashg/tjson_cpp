@@ -11,20 +11,25 @@ namespace tjson {
 class TokenGen;
 class Val;
 
-std::unique_ptr<Val> Read(const char* begin, const char* end,
+std::unique_ptr<Val> read(const char* begin, const char* end,
                           std::vector<std::string>* out_errors);
 
-std::unique_ptr<Val> Read(TokenGen* tok_gen,
+std::unique_ptr<Val> read(TokenGen* tok_gen,
                           std::vector<std::string>* out_errors);
 
-void Write(const Val& root, std::ostream* out, const std::string& indent);
+void write(const Val& root, std::ostream* stream, const std::string& indent);
+
+// -
+
+std::string escape(const std::string& in);
+bool unescape(const std::string& in, std::string* out);
 
 // -
 
 class Val
 {
 public:
-   static const Val kInvalid;
+   static const Val INVALID;
 
 private:
    std::unordered_map<std::string, std::unique_ptr<Val>> dict_;
@@ -51,9 +56,14 @@ public:
    const Val& operator[](const std::string& x) const;
    const Val& operator[](size_t i) const;
 
-   void Write(std::ostream* out, const std::string& indent) const {
-      tjson::Write(*this, out, indent);
+   void write(std::ostream* stream, const std::string& indent) const {
+      tjson::write(*this, stream, indent);
    }
+
+   bool as_string(std::string* const out) const {
+      return unescape(val_, &*out);
+   }
+   bool as_number(double* out) const;
 
    // non-const
 
@@ -74,12 +84,20 @@ public:
    std::unique_ptr<Val>& operator[](const std::string& x);
    std::unique_ptr<Val>& operator[](size_t i);
 
+   // -
+
    auto& val() {
       if (!val_.size()) {
          reset();
       }
       return val_;
    }
+
+   void val(const std::string& x) {
+      val() = std::move(escape(x));
+   }
+
+   void val(double x);
 };
 
 } // namespace tjson

@@ -55,7 +55,7 @@ main(int argc, const char* const argv[])
    fprintf(stderr, "Parsing...\n");
 
    std::vector<std::string> errs;
-   const auto val = tjson::Read((const char*)bytes.data(),
+   const auto val = tjson::read((const char*)bytes.data(),
                                 (const char*)bytes.data()+bytes.size(), &errs);
    if (!val) {
       for (const auto& x : errs) {
@@ -65,7 +65,7 @@ main(int argc, const char* const argv[])
    }
 
    fprintf(stderr, "Writing:\n");
-   val->Write(&std::cout, "");
+   val->write(&std::cout, "");
    std::cout << "\n";
    return 0;
 }
