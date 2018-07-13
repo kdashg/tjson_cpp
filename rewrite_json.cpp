@@ -50,7 +50,7 @@ main(int argc, const char* const argv[])
       fprintf(stderr, "%s\n", err.c_str());
       return 1;
    }
-   fprintf(stderr, "   Read %llu bytes.\n", bytes.size());
+   fprintf(stderr, "   Read %llu bytes.\n", uint64_t(bytes.size()));
 
    fprintf(stderr, "Parsing...\n");
 
