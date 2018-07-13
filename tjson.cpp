@@ -158,16 +158,16 @@ public:
 
 std::unique_ptr<Val>
 read(const char* const begin, const char* const end,
-     std::vector<std::string>* const out_errors)
+     std::string* const out_err)
 {
    TokenGen tok_gen(begin, end);
-   auto ret = read(&tok_gen, &*out_errors);
+   auto ret = read(&tok_gen, out_err);
    return std::move(ret);
 }
 
 std::unique_ptr<Val>
 read(TokenGen* const tok_gen,
-     std::vector<std::string>* const out_errors)
+     std::string* const out_err)
 {
    const auto fn_err = [&](const Token& tok, const char* const expected) {
       auto str = tok.str();
@@ -178,7 +178,7 @@ read(TokenGen* const tok_gen,
       std::ostringstream err;
       err << "Error: L" << tok.line_num << ":" << tok.line_pos << ": Expected "
           << expected << ", got: \"" << str << "\".";
-      out_errors->push_back(err.str());
+      *out_err = err.str();
    };
 
    const auto fn_is_expected = [&](const Token& tok,
@@ -224,7 +224,7 @@ read(TokenGen* const tok_gen,
             if (!fn_is_expected(colon, ":"))
                return nullptr;
 
-            auto v = read(tok_gen, &*out_errors);
+            auto v = read(tok_gen, out_err);
             if (!v)
                return nullptr;
 
@@ -253,7 +253,7 @@ read(TokenGen* const tok_gen,
       } else {
          size_t i = 0;
          while (true) {
-            auto v = read(tok_gen, &*out_errors);
+            auto v = read(tok_gen, out_err);
             if (!v)
                return nullptr;
 

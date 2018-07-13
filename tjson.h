@@ -13,10 +13,10 @@ class TokenGen;
 class Val;
 
 std::unique_ptr<Val> read(const char* begin, const char* end,
-                          std::vector<std::string>* out_errors);
+                          std::string* out_err);
 
 std::unique_ptr<Val> read(TokenGen* tok_gen,
-                          std::vector<std::string>* out_errors);
+                          std::string* out_err);
 
 void write(const Val& root, std::ostream* stream, const std::string& indent);
 
